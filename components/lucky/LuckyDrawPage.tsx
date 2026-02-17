@@ -2,11 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Target } from "framer-motion";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { AmountCounter } from "@/components/lucky/AmountCounter";
-import { ConfettiBurst } from "@/components/lucky/ConfettiBurst";
-import { LixiCardBack, LixiCardFront } from "@/components/lucky/LixiCardFace";
+import { LixiCardFront } from "@/components/lucky/LixiCardFace";
+import { formatVnd } from "@/lib/format";
 
 type SceneState = "stack" | "shuffle" | "fan" | "revealing" | "result" | "locked" | "exhausted";
 type RevealStage = "fly" | "flip" | "done";
@@ -20,6 +21,7 @@ interface PublicDeckInfo {
 interface PublicConfigResponse {
   deck: PublicDeckInfo[];
   remainingTotal: number;
+  currencyNotes?: CurrencyNoteAsset[];
 }
 
 interface DrawApiResponse {
@@ -56,6 +58,26 @@ interface MotionState extends Target {
   opacity: number;
 }
 
+interface CurrencyNoteAsset {
+  amount: number;
+  src: string;
+}
+
+interface MoneyStackNote {
+  amount: number;
+  src: string;
+  offsetX: number;
+  offsetY: number;
+  rotate: number;
+}
+
+interface MoneyStackPlan {
+  notes: MoneyStackNote[];
+  hiddenCount: number;
+  fallback: boolean;
+  warning: string | null;
+}
+
 const DEFAULT_CARD_COUNT = 13;
 const CARD_WIDTH = 108;
 const CARD_HEIGHT = 192;
@@ -64,6 +86,18 @@ const CARD_HALF_HEIGHT = CARD_HEIGHT / 2;
 const MIN_ANGLE = -60;
 const MAX_ANGLE = 60;
 const INITIAL_SHUFFLE_SEED = 2026;
+const MAX_VISIBLE_STACK_NOTES = 4;
+const FALLBACK_CURRENCY_FILES = [
+  "1k.jpg",
+  "2k.jpg",
+  "5k.jpg",
+  "10k.jpg",
+  "20k.jpg",
+  "50k.jpg",
+  "100k.jpg",
+  "200k.jpg",
+  "500k.jpg"
+];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -125,6 +159,103 @@ function buildFanMotion(index: number, fanLayout: FanLayout, cardCount: number):
   return { x, y, rotate: angle, scale: 1, opacity: 1 };
 }
 
+function parseAmountFromFileName(fileName: string): number | null {
+  const stem = fileName.replace(/\.[^.]+$/, "").toLowerCase().trim();
+  const compact = stem.replace(/[_\s-]+/g, "");
+  const match = compact.match(/(\d+(?:\.\d+)?)(k|m)?/);
+  if (!match) return null;
+
+  const base = Number(match[1]);
+  if (!Number.isFinite(base) || base <= 0) return null;
+  const unit = match[2];
+
+  if (unit === "k") return Math.round(base * 1_000);
+  if (unit === "m") return Math.round(base * 1_000_000);
+  return Math.round(base);
+}
+
+function buildFallbackCurrencyNotes(): CurrencyNoteAsset[] {
+  return FALLBACK_CURRENCY_FILES.map((fileName) => {
+    const amount = parseAmountFromFileName(fileName) ?? 0;
+    return { amount, src: `/currency/${fileName}` };
+  })
+    .filter((item) => item.amount > 0)
+    .sort((a, b) => a.amount - b.amount);
+}
+
+function buildMoneyStackPlan(amount: number | null, sourceNotes: CurrencyNoteAsset[]): MoneyStackPlan {
+  if (typeof amount !== "number" || amount <= 0) {
+    return { notes: [], hiddenCount: 0, fallback: false, warning: null };
+  }
+
+  const normalized = [...sourceNotes]
+    .filter((item) => Number.isInteger(item.amount) && item.amount > 0 && Boolean(item.src))
+    .sort((a, b) => b.amount - a.amount);
+
+  if (normalized.length === 0) {
+    return {
+      notes: [],
+      hiddenCount: 0,
+      fallback: true,
+      warning: `[reveal] Khong tim thay anh tien trong /currency cho amount=${amount}.`
+    };
+  }
+
+  let pickedValues: number[] = [];
+  let fallback = false;
+  let warning: string | null = null;
+
+  if (amount <= 500_000) {
+    const exact = normalized.find((item) => item.amount === amount);
+    if (exact) {
+      pickedValues = [exact.amount];
+    } else {
+      const nearest = normalized.find((item) => item.amount <= amount) ?? normalized[normalized.length - 1];
+      pickedValues = [nearest.amount];
+      fallback = true;
+      warning = `[reveal] Khong co menh gia khop ${amount}, fallback ${nearest.amount}.`;
+    }
+  } else {
+    let remaining = amount;
+    for (const note of normalized) {
+      while (remaining >= note.amount) {
+        pickedValues.push(note.amount);
+        remaining -= note.amount;
+        if (pickedValues.length >= 60) break;
+      }
+      if (remaining === 0 || pickedValues.length >= 60) break;
+    }
+
+    if (remaining !== 0 || pickedValues.length === 0) {
+      const nearest = normalized.find((item) => item.amount <= amount) ?? normalized[normalized.length - 1];
+      pickedValues = [nearest.amount];
+      fallback = true;
+      warning =
+        `[reveal] Khong tach chinh xac amount=${amount} theo bo currency, fallback ${nearest.amount}. remaining=${remaining}.`;
+    }
+  }
+
+  const visibleValues = pickedValues.slice(0, MAX_VISIBLE_STACK_NOTES);
+  const hiddenCount = Math.max(0, pickedValues.length - visibleValues.length);
+
+  const offsetX = [0, 10, -10, 12];
+  const offsetY = [0, 5, 10, 15];
+  const offsetR = [0, -1.4, 1.2, -1.8];
+
+  const notes = visibleValues.map((value, index) => {
+    const noteAsset = normalized.find((item) => item.amount === value) ?? normalized[normalized.length - 1];
+    return {
+      amount: value,
+      src: noteAsset.src,
+      offsetX: offsetX[index] ?? index * 10,
+      offsetY: offsetY[index] ?? index * 5,
+      rotate: offsetR[index] ?? 0
+    };
+  });
+
+  return { notes, hiddenCount, fallback, warning };
+}
+
 export function LuckyDrawPage() {
   const fanRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -150,8 +281,7 @@ export function LuckyDrawPage() {
   const [remainingTotal, setRemainingTotal] = useState(0);
   const [drawRecord, setDrawRecord] = useState<DrawRecord | null>(null);
   const [revealedAmount, setRevealedAmount] = useState<number | null>(null);
-  const [showConfetti, setShowConfetti] = useState(false);
-  const [confettiSeed, setConfettiSeed] = useState(0);
+  const [currencyNotes, setCurrencyNotes] = useState<CurrencyNoteAsset[]>(() => buildFallbackCurrencyNotes());
   const [amountDuration, setAmountDuration] = useState(820);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 330, height: 320 });
 
@@ -283,6 +413,13 @@ export function LuckyDrawPage() {
         if (!response.ok) throw new Error("Không tải được cấu hình.");
         const data = (await response.json()) as PublicConfigResponse;
         setRemainingTotal(data.remainingTotal);
+        if (Array.isArray(data.currencyNotes) && data.currencyNotes.length > 0) {
+          setCurrencyNotes(
+            data.currencyNotes
+              .filter((item) => Number.isInteger(item.amount) && item.amount > 0 && Boolean(item.src))
+              .sort((a, b) => a.amount - b.amount)
+          );
+        }
 
         const initialCount = Math.max(0, data.remainingTotal);
         const initialOrder = initialCount > 0 ? buildSequentialOrder(initialCount) : [];
@@ -308,12 +445,6 @@ export function LuckyDrawPage() {
       clearScheduledWork();
     };
   }, [clearScheduledWork, runShuffleSequence]);
-
-  useEffect(() => {
-    if (!showConfetti) return;
-    const timer = window.setTimeout(() => setShowConfetti(false), 1200);
-    return () => window.clearTimeout(timer);
-  }, [showConfetti]);
 
   const confirmSelection = async (index: number) => {
     if (scene !== "fan" || isDrawing || remainingTotal <= 0) return;
@@ -368,8 +499,6 @@ export function LuckyDrawPage() {
       setRemainingTotal(nextRemaining);
 
       setAmountDuration(800);
-      setConfettiSeed(Date.now());
-      setShowConfetti(true);
       setScene("result");
     } catch {
       if (requestId !== drawRequestIdRef.current) return;
@@ -395,7 +524,6 @@ export function LuckyDrawPage() {
     clearScheduledWork();
 
     setIsDrawing(false);
-    setShowConfetti(false);
     setDrawError("");
     setDrawRecord(null);
     setRevealedAmount(null);
@@ -422,7 +550,6 @@ export function LuckyDrawPage() {
     drawRequestIdRef.current += 1;
     clearScheduledWork();
     setIsDrawing(false);
-    setShowConfetti(false);
     setDrawError("");
     setDrawRecord(null);
     setRevealedAmount(null);
@@ -465,6 +592,14 @@ export function LuckyDrawPage() {
   const isRevealDialogOpen =
     selectedCardId !== null && (scene === "revealing" || scene === "result" || scene === "locked");
   const amountToShow = revealedAmount ?? drawRecord?.amount ?? null;
+  const moneyStackPlan = useMemo(() => buildMoneyStackPlan(amountToShow, currencyNotes), [amountToShow, currencyNotes]);
+  const flapOpened = revealStage === "flip" || revealStage === "done" || scene === "result";
+
+  useEffect(() => {
+    if (moneyStackPlan.warning) {
+      console.warn(moneyStackPlan.warning);
+    }
+  }, [moneyStackPlan.warning]);
 
   return (
     <main className="festive-backdrop min-h-screen px-4 py-6">
@@ -482,22 +617,24 @@ export function LuckyDrawPage() {
           </header>
 
           <div className="relative mt-6 rounded-3xl border border-[#f0dcaf] bg-white/55 px-3 pb-6 pt-8">
-            <div
-              ref={fanRef}
-              className="relative mx-auto h-[320px] w-full max-w-[360px] touch-none select-none"
-              onPointerDown={handleFanPointerDown}
-              onPointerMove={handleFanPointerMove}
-              onPointerUp={endScrub}
-              onPointerCancel={endScrub}
-            >
-              <div
-                className="pointer-events-none absolute left-1/2 top-1/2 h-0 w-0"
-                style={{
-                  transform: `translate(-50%, -50%) scale(${fanLayout.scale})`,
-                  transformOrigin: "center center"
-                }}
-              >
-                {cardOrder.map((cardId, slotIndex) => {
+            {!isRevealDialogOpen && (
+              <>
+                <div
+                  ref={fanRef}
+                  className="relative mx-auto h-[320px] w-full max-w-[360px] touch-none select-none"
+                  onPointerDown={handleFanPointerDown}
+                  onPointerMove={handleFanPointerMove}
+                  onPointerUp={endScrub}
+                  onPointerCancel={endScrub}
+                >
+                  <div
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-0 w-0"
+                    style={{
+                      transform: `translate(-50%, -50%) scale(${fanLayout.scale})`,
+                      transformOrigin: "center center"
+                    }}
+                  >
+                    {cardOrder.map((cardId, slotIndex) => {
                   const fanMotion = buildFanMotion(slotIndex, fanLayout, cardCount);
                   const slotNormalized = cardCount > 1 ? (slotIndex / (cardCount - 1)) * 2 - 1 : 0;
                   const splitXMax = clamp(stageSize.width * 0.32, 72, 180);
@@ -611,26 +748,27 @@ export function LuckyDrawPage() {
                       <LixiCardFront index={cardId} />
                     </motion.button>
                   );
-                })}
+                    })}
+                  </div>
+                </div>
 
-              </div>
-            </div>
-
-            {scene === "fan" && (
-              <div className="mt-2 text-center">
-                <p className="text-xs text-[#8a6338]">Vuốt ngang để rê chọn, vuốt lên để chốt nhanh.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (highlightedIndex === null) return;
-                    void confirmSelection(highlightedIndex);
-                  }}
-                  disabled={isDrawing || remainingTotal <= 0 || highlightedIndex === null}
-                  className="cta-press mt-3 rounded-xl bg-gradient-to-r from-[#a0282d] to-[#7f191c] px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff4dc] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isDrawing ? "Đang rút..." : "Chọn lá này"}
-                </button>
-              </div>
+                {scene === "fan" && (
+                  <div className="mt-2 text-center">
+                    <p className="text-xs text-[#8a6338]">Vuốt ngang để rê chọn, vuốt lên để chốt nhanh.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (highlightedIndex === null) return;
+                        void confirmSelection(highlightedIndex);
+                      }}
+                      disabled={isDrawing || remainingTotal <= 0 || highlightedIndex === null}
+                      className="cta-press mt-3 rounded-xl bg-gradient-to-r from-[#a0282d] to-[#7f191c] px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-[#fff4dc] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isDrawing ? "Đang rút..." : "Chọn lá này"}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
             {!isRevealDialogOpen && (
@@ -666,7 +804,7 @@ export function LuckyDrawPage() {
       <AnimatePresence>
         {isRevealDialogOpen && selectedCardId !== null && (
           <motion.div
-            className="fixed inset-0 z-[70] bg-black/78 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/78 backdrop-blur-[2px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -678,32 +816,30 @@ export function LuckyDrawPage() {
               exit={{ scale: 0.99 }}
               transition={{ duration: 0.28, ease: [0.2, 0.9, 0.2, 1] }}
             >
-              {showConfetti && <ConfettiBurst seed={confettiSeed} />}
-
               <motion.div
-                className="pointer-events-none absolute left-1/2 top-[48%] h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                animate={{ opacity: [0.3, 0.78, 0.34], scale: [0.92, 1.08, 0.96] }}
-                transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.6, ease: "easeInOut" }}
+                className="pointer-events-none absolute left-1/2 top-[41%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                animate={{ opacity: [0.24, 0.6, 0.28], scale: [0.92, 1.08, 0.96] }}
+                transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.9, ease: "easeInOut" }}
                 style={{
                   background:
-                    "radial-gradient(circle, rgba(232,188,103,0.58) 0%, rgba(232,188,103,0.2) 45%, rgba(232,188,103,0) 75%)"
+                    "radial-gradient(circle, rgba(232,188,103,0.52) 0%, rgba(232,188,103,0.18) 46%, rgba(232,188,103,0) 76%)"
                 }}
               />
 
               <div className="pointer-events-none absolute inset-0">
-                {Array.from({ length: 8 }).map((_, index) => {
-                  const angle = (index / 8) * Math.PI * 2;
-                  const x = Math.round(Math.cos(angle) * 94);
-                  const y = Math.round(Math.sin(angle) * 94);
+                {Array.from({ length: 10 }).map((_, index) => {
+                  const angle = (index / 10) * Math.PI * 2;
+                  const x = Math.round(Math.cos(angle) * 84);
+                  const y = Math.round(Math.sin(angle) * 56);
                   return (
                     <motion.span
                       key={`shine-${index}`}
                       className="absolute h-1.5 w-1.5 rounded-full bg-[#f5cf83]"
-                      style={{ left: `calc(50% + ${x}px)`, top: `calc(46% + ${y}px)` }}
-                      animate={{ opacity: [0.25, 1, 0.3], scale: [0.7, 1.2, 0.75] }}
+                      style={{ left: `calc(50% + ${x}px)`, top: `calc(40% + ${y}px)` }}
+                      animate={{ opacity: [0.28, 1, 0.34], scale: [0.72, 1.16, 0.78] }}
                       transition={{
                         repeat: Number.POSITIVE_INFINITY,
-                        duration: 1 + index * 0.06,
+                        duration: 1.05 + index * 0.05,
                         delay: index * 0.05
                       }}
                     />
@@ -711,89 +847,162 @@ export function LuckyDrawPage() {
                 })}
               </div>
 
-              <div className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center">
+              <div
+                className="relative z-10 mx-auto flex h-full w-full max-w-[430px] flex-col items-center px-4 text-center"
+                style={{
+                  paddingTop: "max(18px, env(safe-area-inset-top))",
+                  paddingBottom: "max(20px, env(safe-area-inset-bottom))"
+                }}
+              >
                 <motion.div
-                  className="relative h-[208px] w-[118px]"
-                  animate={{
-                    scale: revealStage === "fly" ? 1.08 : revealStage === "flip" ? 1.24 : 1.26,
-                    rotateZ: revealStage === "fly" ? -2 : revealStage === "flip" ? 1.5 : 0
-                  }}
-                  transition={{ duration: 0.34, ease: [0.25, 0.9, 0.2, 1] }}
+                  className="w-full"
+                  style={{ marginTop: "clamp(20px, 7vh, 72px)" }}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2, ease: [0.2, 0.9, 0.2, 1] }}
                 >
-                  <motion.div
-                    className="relative h-full w-full"
-                    animate={{
-                      rotateY: revealStage === "flip" || revealStage === "done" || scene === "result" ? 180 : 0
-                    }}
-                    transition={{ duration: 0.54, ease: [0.23, 0.83, 0.23, 1] }}
-                    style={{ transformStyle: "preserve-3d" }}
-                  >
-                    <div className="absolute inset-0 [backface-visibility:hidden]">
-                      <LixiCardFront index={selectedCardId} />
+                  <div className="relative mx-auto w-[84vw] max-w-[360px] min-w-[236px]">
+                    <div className="relative aspect-[1/0.84] overflow-visible">
+                      <motion.div
+                        className="pointer-events-none absolute left-1/2 top-[6%] z-[1] w-[95%] -translate-x-1/2"
+                        style={{ willChange: "transform" }}
+                        initial={{ y: "55%", opacity: 0.92 }}
+                        animate={flapOpened ? { y: ["55%", "18%", "23%", "20%"], opacity: 1 } : { y: "55%", opacity: 0.94 }}
+                        transition={
+                          flapOpened
+                            ? {
+                                duration: 0.88,
+                                ease: [0.19, 0.85, 0.23, 1],
+                                times: [0, 0.72, 0.88, 1]
+                              }
+                            : { duration: 0.24, ease: "easeOut" }
+                        }
+                      >
+                        {moneyStackPlan.notes.map((note, index) => {
+                          const count = moneyStackPlan.notes.length;
+                          const center = (count - 1) / 2;
+                          const xShift = (index - center) * 10;
+                          const yShift = index * 6;
+                          const rotateShift = (index - center) * 1;
+
+                          return (
+                            <motion.div
+                              key={`${note.amount}-${index}-${note.src}`}
+                              className="absolute left-1/2 top-0 aspect-[2.18/1] w-[72%] drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
+                              style={{
+                                transform: `translateX(calc(-50% + ${xShift}px)) translateY(${yShift}px) rotate(${90 + rotateShift}deg)`
+                              }}
+                              initial={{ opacity: 0, scale: 0.98 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ duration: 0.24, delay: 0.08 + index * 0.05 }}
+                            >
+                              <Image
+                                src={note.src}
+                                alt={`${formatVnd(note.amount)}`}
+                                fill
+                                className="object-contain"
+                                sizes="(max-width: 430px) 58vw, 196px"
+                              />
+                            </motion.div>
+                          );
+                        })}
+                      </motion.div>
+
+                      <div className="absolute inset-x-[8%] bottom-[8%] z-[2] h-[60%] overflow-hidden rounded-b-[30px] rounded-t-[12px]">
+                        <div className="absolute inset-0 bg-gradient-to-b from-[#c63136]/25 to-[#8d2228]/55" />
+                      </div>
+
+                      <div className="absolute inset-x-[8%] bottom-[8%] z-[3] h-[68%] rounded-b-[30px] rounded-t-[12px] border border-[#f2cb80]/68 bg-gradient-to-b from-[#cf363b] to-[#8f2227] shadow-[0_18px_30px_rgba(30,8,9,0.32)]">
+                        <div className="absolute inset-x-3 top-2 h-px bg-[#ffe5b2]/40" />
+                        <div className="absolute inset-x-0 top-[38%] h-px bg-[#f6d18c]/32" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(250,214,149,0.16),transparent_40%),radial-gradient(circle_at_88%_84%,rgba(255,240,195,0.12),transparent_40%)]" />
+                      </div>
+
+                      <motion.div
+                        className="absolute inset-x-[8%] top-[8%] z-[4] h-[44%] origin-top"
+                        animate={{
+                          rotateX: flapOpened ? -55 : -2,
+                          y: flapOpened ? -2 : 0,
+                          rotateZ: flapOpened ? 0.6 : 0
+                        }}
+                        transition={{ type: "spring", stiffness: 260, damping: 24, mass: 0.6 }}
+                      >
+                        <div className="h-full w-full [clip-path:polygon(0_0,100%_0,50%_100%)] border border-[#f5c980]/60 bg-gradient-to-b from-[#f05d62] to-[#b22d33] shadow-[0_8px_14px_rgba(0,0,0,0.24)]" />
+                      </motion.div>
+
+                      <div className="pointer-events-none absolute inset-x-[14%] top-[39%] z-[5] h-[3px] rounded-full bg-[#f4cf84]/58" />
+
+                      {moneyStackPlan.hiddenCount > 0 && (
+                        <div className="absolute right-[7%] top-[18%] z-[6] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
+                          +{moneyStackPlan.hiddenCount} tờ
+                        </div>
+                      )}
                     </div>
-                    <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                      <LixiCardBack amount={scene === "result" || revealStage === "done" ? amountToShow : null} />
-                    </div>
-                  </motion.div>
+                  </div>
                 </motion.div>
 
-                <div className="mt-5 min-h-[72px]">
+                <div className="mt-5 min-h-[76px] text-center">
                   {scene === "revealing" && (
                     <p className="text-sm tracking-[0.08em] text-[#f3dba7]">Đang mở lì xì...</p>
                   )}
                   {(scene === "result" || scene === "locked") && amountToShow !== null && (
                     <>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f5cf83] mt-5">Bạn nhận được</p>
-                      <p className="mt-1 text-[2.1rem] font-semibold text-[#fff3d6]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#f5cf83]">
+                        BẠN NHẬN ĐƯỢC
+                      </p>
+                      <p className="mt-1 text-[2.26rem] font-semibold leading-none text-[#fff3d6]">
                         <AmountCounter value={amountToShow} durationMs={amountDuration} />
                       </p>
+                      {moneyStackPlan.fallback && (
+                        <p className="mt-2 text-xs text-[#ffdba3]">Tổng hiển thị: {formatVnd(amountToShow)}</p>
+                      )}
                     </>
                   )}
                 </div>
-              </div>
 
-              {scene === "result" && (
-                <div
-                  className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-2 px-4 pb-6"
-                  style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}
-                >
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="rounded-lg border border-[#d8af67] bg-white/80 px-4 py-2 text-sm font-medium text-[#7b4a2e]"
+                {scene === "result" && (
+                  <div
+                    className="mt-4 flex items-center justify-center gap-2"
+                    style={{ paddingBottom: "max(4px, env(safe-area-inset-bottom))" }}
                   >
-                    Chơi lại
-                  </button>
-                  {remainingTotal > 0 && (
                     <button
                       type="button"
-                      onClick={handlePlayContinue}
-                      className="rounded-lg border border-[#9f262b] bg-[#9f262b] px-4 py-2 text-sm font-medium text-[#fff4dc]"
+                      onClick={handleReset}
+                      className="rounded-lg border border-[#d8af67] bg-white/80 px-4 py-2 text-sm font-medium text-[#7b4a2e]"
                     >
-                      Chơi tiếp
+                      Chơi lại
                     </button>
-                  )}
-                </div>
-              )}
+                    {remainingTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={handlePlayContinue}
+                        className="rounded-lg border border-[#9f262b] bg-[#9f262b] px-4 py-2 text-sm font-medium text-[#fff4dc]"
+                      >
+                        Chơi tiếp
+                      </button>
+                    )}
+                  </div>
+                )}
 
-              {scene === "locked" && (
-                <div
-                  className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center px-4 pb-6"
-                  style={{ paddingBottom: "max(24px, env(safe-area-inset-bottom))" }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedIndex(null);
-                      setRevealStage("fly");
-                      setScene("fan");
-                    }}
-                    className="rounded-lg border border-[#d8af67] bg-white/80 px-4 py-2 text-sm font-medium text-[#7b4a2e]"
+                {scene === "locked" && (
+                  <div
+                    className="mt-4 flex items-center justify-center"
+                    style={{ paddingBottom: "max(4px, env(safe-area-inset-bottom))" }}
                   >
-                    Đóng
-                  </button>
-                </div>
-              )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedIndex(null);
+                        setRevealStage("fly");
+                        setScene("fan");
+                      }}
+                      className="rounded-lg border border-[#d8af67] bg-white/80 px-4 py-2 text-sm font-medium text-[#7b4a2e]"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

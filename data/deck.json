@@ -3,17 +3,17 @@
     {
       "amount": 50000,
       "quantity": 5,
-      "remaining": 1
+      "remaining": 5
     },
     {
       "amount": 100000,
       "quantity": 3,
-      "remaining": 0
+      "remaining": 1
     },
     {
       "amount": 200000,
       "quantity": 2,
-      "remaining": 0
+      "remaining": 1
     },
     {
       "amount": 500000,
