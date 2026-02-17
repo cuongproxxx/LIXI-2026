@@ -3,12 +3,12 @@
     {
       "amount": 12000,
       "quantity": 10,
-      "remaining": 4
+      "remaining": 0
     },
     {
       "amount": 13000,
       "quantity": 5,
-      "remaining": 3
+      "remaining": 0
     }
   ]
 }

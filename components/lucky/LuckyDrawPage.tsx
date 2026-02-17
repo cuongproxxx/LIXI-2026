@@ -867,6 +867,7 @@ export function LuckyDrawPage() {
                           const spreadGap = shouldFan ? (count >= 4 ? 52 : count === 3 ? 64 : 78) : 0;
                           const xShift = shouldFan ? spread * spreadGap : 0;
                           const rotateShift = shouldFan ? spread * 7.5 : 0;
+                          const baseRotation = 90;
                           const liftY = shouldFan ? Math.abs(spread) * 7 : 0;
                           const hiddenY = 94 + index * 8;
                           const revealedY = liftY;
@@ -882,17 +883,17 @@ export function LuckyDrawPage() {
                               <motion.div
                                 className="h-full w-full drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
                                 style={{ willChange: "transform" }}
-                                initial={{ x: 0, y: hiddenY, rotate: 0, opacity: 0.88, scale: 0.96 }}
+                                initial={{ x: 0, y: hiddenY, rotate: baseRotation, opacity: 0.88, scale: 0.96 }}
                                 animate={
                                   flapOpened
                                     ? {
                                         x: xShift,
                                         y: [hiddenY, revealedY - 12, revealedY],
-                                        rotate: rotateShift,
+                                        rotate: baseRotation + rotateShift,
                                         opacity: 1,
                                         scale: 1
                                       }
-                                    : { x: 0, y: hiddenY, rotate: 0, opacity: 0.88, scale: 0.96 }
+                                    : { x: 0, y: hiddenY, rotate: baseRotation, opacity: 0.88, scale: 0.96 }
                                 }
                                 transition={
                                   flapOpened
@@ -936,19 +937,17 @@ export function LuckyDrawPage() {
                       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#f5cf83]">
                         BẠN NHẬN ĐƯỢC
                       </p>
-                      <p className="mt-1 text-[2.26rem] font-semibold leading-none text-[#fff3d6]">
+                      <p className="mt-8 text-[2.26rem] font-semibold leading-none text-[#fff3d6]">
                         <AmountCounter value={amountToShow} durationMs={amountDuration} />
                       </p>
-                      {moneyStackPlan.fallback && (
-                        <p className="mt-2 text-xs text-[#ffdba3]">Tổng hiển thị: {formatVnd(amountToShow)}</p>
-                      )}
+                      
                     </>
                   )}
                 </div>
 
                 {scene === "result" && (
                   <div
-                    className="mt-4 flex items-center justify-center gap-2"
+                    className="mt-8 flex items-center justify-center gap-2"
                     style={{ paddingBottom: "max(4px, env(safe-area-inset-bottom))" }}
                   >
                     <button
