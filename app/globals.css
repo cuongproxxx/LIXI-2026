@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-cream: #fff7e6;
+  --ink: #2e2420;
+  --red: #8f1d20;
+  --red-deep: #6f1318;
+  --gold: #d2a44a;
+  --gold-soft: #f2ddb0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--font-body), sans-serif;
+  background-color: var(--bg-cream);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), serif;
+}
+
+.festive-backdrop {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(210, 164, 74, 0.26), transparent 45%),
+    radial-gradient(circle at 80% 10%, rgba(143, 29, 32, 0.16), transparent 42%),
+    linear-gradient(180deg, #fff8e9 0%, #fff3dc 100%);
+}
+
+.festive-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(210, 164, 74, 0.28) 0.8px, transparent 0.8px),
+    radial-gradient(circle, rgba(210, 164, 74, 0.2) 0.6px, transparent 0.6px);
+  background-size: 34px 34px, 26px 26px;
+  background-position: 0 0, 16px 12px;
+  opacity: 0.35;
+  animation: grain-drift 18s linear infinite alternate;
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+}
+
+.focus-ring {
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  border-color: rgba(210, 164, 74, 0.95);
+  box-shadow: 0 0 0 3px rgba(210, 164, 74, 0.26);
+}
+
+.cta-press {
+  transition: transform 120ms ease, filter 200ms ease;
+}
+
+.cta-press:active {
+  transform: scale(0.97);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
