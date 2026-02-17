@@ -24,20 +24,6 @@ interface PublicConfigResponse {
   currencyNotes?: CurrencyNoteAsset[];
 }
 
-interface DrawApiResponse {
-  ok?: boolean;
-  amount?: number;
-  remainingTotal?: number;
-  exhausted?: boolean;
-  error?: string;
-}
-
-interface DepositApiResponse {
-  ok?: boolean;
-  remainingTotal?: number;
-  error?: string;
-}
-
 interface DrawRecord {
   amount: number;
   remainingTotal: number;
@@ -94,6 +80,7 @@ const MAX_ANGLE = 60;
 const INITIAL_SHUFFLE_SEED = 2026;
 const MAX_VISIBLE_STACK_NOTES = 4;
 const QUICK_DEPOSIT_AMOUNTS = [10_000, 20_000, 50_000, 100_000, 200_000, 500_000];
+const LOCAL_DECK_STORAGE_KEY = "lixi_2026_local_deck";
 const FALLBACK_CURRENCY_FILES = [
   "1k.jpg",
   "2k.jpg",
@@ -130,6 +117,82 @@ function formatAmountInput(value: string): string {
   const amount = parseFormattedAmount(value);
   if (amount <= 0) return "";
   return new Intl.NumberFormat("vi-VN").format(amount);
+}
+
+function normalizePublicDeck(deck: PublicDeckInfo[] | undefined): PublicDeckInfo[] {
+  if (!Array.isArray(deck)) return [];
+  return deck
+    .filter((item) => Number.isInteger(item.amount) && item.amount > 0 && Number.isInteger(item.remaining) && item.remaining >= 0)
+    .sort((a, b) => a.amount - b.amount);
+}
+
+function formatDenominationShort(amount: number): string {
+  if (amount >= 1_000_000 && amount % 1_000_000 === 0) return `${amount / 1_000_000}m`;
+  if (amount >= 1_000 && amount % 1_000 === 0) return `${amount / 1_000}k`;
+  return new Intl.NumberFormat("vi-VN").format(amount);
+}
+
+function getRemainingTotal(deck: PublicDeckInfo[]): number {
+  return deck.reduce((sum, item) => sum + item.remaining, 0);
+}
+
+function loadLocalDeck(): PublicDeckInfo[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_DECK_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as PublicDeckInfo[] | undefined;
+    return normalizePublicDeck(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalDeck(deck: PublicDeckInfo[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LOCAL_DECK_STORAGE_KEY, JSON.stringify(deck));
+  } catch {
+    // Ignore storage failures to avoid blocking gameplay.
+  }
+}
+
+function addToLocalDeck(deck: PublicDeckInfo[], amount: number, quantity: number): PublicDeckInfo[] {
+  const existing = deck.find((item) => item.amount === amount);
+  if (!existing) {
+    return [...deck, { amount, remaining: quantity }].sort((a, b) => a.amount - b.amount);
+  }
+
+  return deck
+    .map((item) => (item.amount === amount ? { ...item, remaining: item.remaining + quantity } : item))
+    .sort((a, b) => a.amount - b.amount);
+}
+
+function drawFromLocalDeck(deck: PublicDeckInfo[]): { amount: number; deck: PublicDeckInfo[]; remainingTotal: number } | null {
+  const total = getRemainingTotal(deck);
+  if (total <= 0) return null;
+
+  const ticket = Math.floor(Math.random() * total);
+  let cursor = 0;
+  let selectedAmount = deck[0]?.amount ?? 0;
+
+  for (const item of deck) {
+    cursor += item.remaining;
+    if (ticket < cursor) {
+      selectedAmount = item.amount;
+      break;
+    }
+  }
+
+  const nextDeck = deck.map((item) =>
+    item.amount === selectedAmount ? { ...item, remaining: Math.max(0, item.remaining - 1) } : item
+  );
+
+  return {
+    amount: selectedAmount,
+    deck: nextDeck,
+    remainingTotal: total - 1
+  };
 }
 
 function createSeededRandom(seed: number): () => number {
@@ -300,6 +363,7 @@ export function LuckyDrawPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawError, setDrawError] = useState("");
   const [remainingTotal, setRemainingTotal] = useState(0);
+  const [deckBreakdown, setDeckBreakdown] = useState<PublicDeckInfo[]>([]);
   const [drawRecord, setDrawRecord] = useState<DrawRecord | null>(null);
   const [revealedAmount, setRevealedAmount] = useState<number | null>(null);
   const [currencyNotes, setCurrencyNotes] = useState<CurrencyNoteAsset[]>(() => buildFallbackCurrencyNotes());
@@ -469,11 +533,26 @@ export function LuckyDrawPage() {
 
   useEffect(() => {
     const bootstrap = async () => {
+      const localDeck = loadLocalDeck();
+      const localRemaining = getRemainingTotal(localDeck);
+      setDeckBreakdown(localDeck);
+      setRemainingTotal(localRemaining);
+      setDrawError("");
+
+      const initialOrder = localRemaining > 0 ? buildSequentialOrder(localRemaining) : [];
+      setCardOrder(initialOrder);
+      setHighlightedIndex(null);
+
+      if (localRemaining <= 0) {
+        setScene("exhausted");
+      } else {
+        void runShuffleSequence(initialOrder, shuffleSeedRef.current);
+      }
+
       try {
         const response = await fetch("/api/config", { cache: "no-store" });
-        if (!response.ok) throw new Error("Không tải được cấu hình.");
+        if (!response.ok) return;
         const data = (await response.json()) as PublicConfigResponse;
-        setRemainingTotal(data.remainingTotal);
         if (Array.isArray(data.currencyNotes) && data.currencyNotes.length > 0) {
           setCurrencyNotes(
             data.currencyNotes
@@ -481,20 +560,8 @@ export function LuckyDrawPage() {
               .sort((a, b) => a.amount - b.amount)
           );
         }
-
-        const initialCount = Math.max(0, data.remainingTotal);
-        const initialOrder = initialCount > 0 ? buildSequentialOrder(initialCount) : [];
-        setCardOrder(initialOrder);
-        setHighlightedIndex(null);
-
-        if (initialCount <= 0) {
-          setScene("exhausted");
-          return;
-        }
-
-        void runShuffleSequence(initialOrder, shuffleSeedRef.current);
       } catch {
-        setDrawError("Không tải được dữ liệu lì xì. Vui lòng tải lại trang.");
+        // Keep fallback currency notes when config fetch fails.
       }
     };
 
@@ -507,7 +574,7 @@ export function LuckyDrawPage() {
     };
   }, [clearScheduledWork, runShuffleSequence]);
 
-  const confirmSelection = async (index: number) => {
+  const confirmSelection = (index: number) => {
     if (scene !== "fan" || isDrawing || remainingTotal <= 0) return;
 
     setSelectedIndex(index);
@@ -521,55 +588,27 @@ export function LuckyDrawPage() {
     scheduleTimeout(() => setRevealStage("flip"), 420);
     scheduleTimeout(() => setRevealStage("done"), 980);
 
-    const requestId = drawRequestIdRef.current + 1;
-    drawRequestIdRef.current = requestId;
-
-    try {
-      const response = await fetch("/api/draw", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ continue: true })
-      });
-      const body = (await response.json()) as DrawApiResponse;
-      if (requestId !== drawRequestIdRef.current) return;
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          setScene("locked");
-          setDrawError(body.error ?? "Bạn đã rút lì xì trong 24 giờ qua.");
-        } else if (response.status === 409 || body.exhausted) {
-          setScene("exhausted");
-          setRemainingTotal(0);
-          setCardOrder([]);
-          setSelectedIndex(null);
-          setDrawError(body.error ?? "Hết lì xì rồi.");
-        } else {
-          setScene("fan");
-          setSelectedIndex(null);
-          setRevealStage("fly");
-          setDrawError(body.error ?? "Không thể rút lì xì lúc này.");
-        }
-        return;
-      }
-
-      const amount = body.amount ?? 0;
-      const nextRemaining = body.remainingTotal ?? 0;
-
-      setRevealedAmount(amount);
-      setDrawRecord({ amount, remainingTotal: nextRemaining });
-      setRemainingTotal(nextRemaining);
-
-      setAmountDuration(800);
-      setScene("result");
-    } catch {
-      if (requestId !== drawRequestIdRef.current) return;
-      setScene("fan");
+    const draw = drawFromLocalDeck(deckBreakdown);
+    if (!draw) {
+      setScene("exhausted");
+      setRemainingTotal(0);
+      setDeckBreakdown((prev) => prev.map((item) => ({ ...item, remaining: 0 })));
+      setCardOrder([]);
       setSelectedIndex(null);
       setRevealStage("fly");
-      setDrawError("Mất kết nối, thử lại sau vài giây.");
-    } finally {
-      if (requestId === drawRequestIdRef.current) setIsDrawing(false);
+      setDrawError("Hết lì xì rồi.");
+      setIsDrawing(false);
+      return;
     }
+
+    setRevealedAmount(draw.amount);
+    setDrawRecord({ amount: draw.amount, remainingTotal: draw.remainingTotal });
+    setRemainingTotal(draw.remainingTotal);
+    setDeckBreakdown(draw.deck);
+
+    setAmountDuration(800);
+    setScene("result");
+    setIsDrawing(false);
   };
 
   const handleReset = () => {
@@ -580,7 +619,7 @@ export function LuckyDrawPage() {
     restartRound(remainingTotal);
   };
 
-  const handleDepositSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleDepositSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setDepositError("");
     setDepositMessage("");
@@ -598,29 +637,14 @@ export function LuckyDrawPage() {
     }
 
     setIsDepositing(true);
-    try {
-      const response = await fetch("/api/deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, quantity })
-      });
-      const body = (await response.json()) as DepositApiResponse;
-
-      if (!response.ok) {
-        setDepositError(body.error ?? "Khong the bo tien vao li xi luc nay.");
-        return;
-      }
-
-      const nextRemaining = body.remainingTotal ?? remainingTotal + quantity;
-      setDepositMessage(`Da bo them ${quantity} to ${formatVnd(amount)}.`);
-      setDepositQuantityInput("1");
-      setIsDepositDialogOpen(false);
-      restartRound(nextRemaining);
-    } catch {
-      setDepositError("Khong the ket noi den server.");
-    } finally {
-      setIsDepositing(false);
-    }
+    const nextDeck = addToLocalDeck(deckBreakdown, amount, quantity);
+    const nextRemaining = getRemainingTotal(nextDeck);
+    setDeckBreakdown(nextDeck);
+    setDepositMessage(`Da bo them ${quantity} to ${formatVnd(amount)}.`);
+    setDepositQuantityInput("1");
+    setIsDepositDialogOpen(false);
+    restartRound(nextRemaining);
+    setIsDepositing(false);
   };
 
   const handleFanPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -646,6 +670,10 @@ export function LuckyDrawPage() {
   };
 
   const selectedDepositAmount = parseFormattedAmount(depositAmountInput);
+  const visibleDeckBreakdown = useMemo(
+    () => deckBreakdown.filter((item) => item.remaining > 0).sort((a, b) => a.amount - b.amount),
+    [deckBreakdown]
+  );
   const lockNotice = scene === "locked" ? "Bạn đã rút lì xì trong 24 giờ qua." : "";
   const isRevealDialogOpen =
     selectedCardId !== null && (scene === "revealing" || scene === "result" || scene === "locked");
@@ -658,6 +686,10 @@ export function LuckyDrawPage() {
       console.warn(moneyStackPlan.warning);
     }
   }, [moneyStackPlan.warning]);
+
+  useEffect(() => {
+    saveLocalDeck(deckBreakdown);
+  }, [deckBreakdown]);
 
   return (
     <main className="festive-backdrop min-h-screen px-4 py-6">
@@ -870,7 +902,17 @@ export function LuckyDrawPage() {
             <p>
               Số lì xì còn lại <span className="font-semibold text-[#65161a]">{remainingTotal}</span>
             </p>
-            
+            <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[12px] text-[#7b5b3b] sm:grid-cols-3">
+              {visibleDeckBreakdown.length > 0 ? (
+                visibleDeckBreakdown.map((item) => (
+                  <p key={`remaining-${item.amount}`}>
+                    {formatDenominationShort(item.amount)} còn <span className="font-semibold">{item.remaining}</span> tờ
+                  </p>
+                ))
+              ) : (
+                <p className="col-span-2 sm:col-span-3">Không còn mệnh giá nào.</p>
+              )}
+            </div>
           </footer>
         </div>
       </section>
