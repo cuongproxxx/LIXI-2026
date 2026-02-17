@@ -114,6 +114,24 @@ function degToRad(value: number): number {
   return (value * Math.PI) / 180;
 }
 
+function extractDigits(value: string): string {
+  return value.replace(/\D+/g, "");
+}
+
+function parseFormattedAmount(value: string): number {
+  const digits = extractDigits(value);
+  if (!digits) return 0;
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed)) return 0;
+  return parsed;
+}
+
+function formatAmountInput(value: string): string {
+  const amount = parseFormattedAmount(value);
+  if (amount <= 0) return "";
+  return new Intl.NumberFormat("vi-VN").format(amount);
+}
+
 function createSeededRandom(seed: number): () => number {
   let state = seed % 2147483647;
   if (state <= 0) state += 2147483646;
@@ -286,7 +304,9 @@ export function LuckyDrawPage() {
   const [revealedAmount, setRevealedAmount] = useState<number | null>(null);
   const [currencyNotes, setCurrencyNotes] = useState<CurrencyNoteAsset[]>(() => buildFallbackCurrencyNotes());
   const [amountDuration, setAmountDuration] = useState(820);
-  const [depositAmountInput, setDepositAmountInput] = useState("10000");
+  const [depositAmountInput, setDepositAmountInput] = useState(() =>
+    formatAmountInput(String(QUICK_DEPOSIT_AMOUNTS[0] ?? 10_000))
+  );
   const [depositQuantityInput, setDepositQuantityInput] = useState("1");
   const [depositError, setDepositError] = useState("");
   const [depositMessage, setDepositMessage] = useState("");
@@ -565,7 +585,7 @@ export function LuckyDrawPage() {
     setDepositError("");
     setDepositMessage("");
 
-    const amount = Number(depositAmountInput.trim());
+    const amount = parseFormattedAmount(depositAmountInput);
     const quantity = Number(depositQuantityInput.trim());
 
     if (!Number.isInteger(amount) || amount < 1000) {
@@ -625,6 +645,7 @@ export function LuckyDrawPage() {
     }
   };
 
+  const selectedDepositAmount = parseFormattedAmount(depositAmountInput);
   const lockNotice = scene === "locked" ? "Bạn đã rút lì xì trong 24 giờ qua." : "";
   const isRevealDialogOpen =
     selectedCardId !== null && (scene === "revealing" || scene === "result" || scene === "locked");
@@ -870,13 +891,16 @@ export function LuckyDrawPage() {
               exit={{ y: 8, opacity: 0.92, scale: 0.99 }}
               transition={{ duration: 0.2, ease: [0.2, 0.86, 0.24, 1] }}
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bo tien vao li xi</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bỏ tiền vào lì xì</p>
               <div className="mt-3 space-y-2">
                 <label className="block">
-                  <span className="text-[11px] text-[#7b5b3b]">Menh gia (VND)</span>
+                  <span className="text-[11px] text-[#7b5b3b]">Mệnh giá (VND)</span>
                   <input
                     value={depositAmountInput}
-                    onChange={(event) => setDepositAmountInput(event.target.value)}
+                    onChange={(event) => {
+                      setDepositAmountInput(formatAmountInput(event.target.value));
+                      setDepositError("");
+                    }}
                     className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
                     inputMode="numeric"
                     required
@@ -884,13 +908,13 @@ export function LuckyDrawPage() {
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_DEPOSIT_AMOUNTS.map((value) => {
-                    const isActive = depositAmountInput.trim() === String(value);
+                    const isActive = selectedDepositAmount === value;
                     return (
                       <button
                         key={`quick-amount-${value}`}
                         type="button"
                         onClick={() => {
-                          setDepositAmountInput(String(value));
+                          setDepositAmountInput(formatAmountInput(String(value)));
                           setDepositError("");
                         }}
                         className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
@@ -905,7 +929,7 @@ export function LuckyDrawPage() {
                   })}
                 </div>
                 <label className="block">
-                  <span className="text-[11px] text-[#7b5b3b]">So to</span>
+                  <span className="text-[11px] text-[#7b5b3b]">Số lượng</span>
                   <input
                     value={depositQuantityInput}
                     onChange={(event) => setDepositQuantityInput(event.target.value)}

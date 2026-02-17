@@ -27,8 +27,18 @@
     },
     {
       "amount": 20000,
-      "quantity": 10,
-      "remaining": 0
+      "quantity": 20,
+      "remaining": 10
+    },
+    {
+      "amount": 50000,
+      "quantity": 5,
+      "remaining": 5
+    },
+    {
+      "amount": 500000,
+      "quantity": 2,
+      "remaining": 2
     },
     {
       "amount": 1152000,
