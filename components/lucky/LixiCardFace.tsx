@@ -8,6 +8,15 @@ interface LixiCardBackProps {
   amount?: number | null;
 }
 
+function getAmountSizeClass(value: string): string {
+  const len = value.length;
+  if (len >= 14) return "text-[0.9rem]";
+  if (len >= 12) return "text-[1rem]";
+  if (len >= 10) return "text-[1.16rem]";
+  if (len >= 8) return "text-[1.36rem]";
+  return "text-[1.65rem]";
+}
+
 export function LixiCardFront({ index }: LixiCardFrontProps) {
   const serial = `${index + 1}`.padStart(2, "0");
 
@@ -42,6 +51,9 @@ export function LixiCardFront({ index }: LixiCardFrontProps) {
 }
 
 export function LixiCardBack({ amount }: LixiCardBackProps) {
+  const amountLabel = typeof amount === "number" ? formatVnd(amount) : null;
+  const amountSizeClass = amountLabel ? getAmountSizeClass(amountLabel) : "";
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[24px] border border-[#edd39f] bg-[linear-gradient(135deg,#fff8e8_0%,#ffeec9_100%)] text-[#6e1f22] shadow-[0_12px_24px_rgba(94,57,30,0.24)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(210,164,74,0.26),transparent_40%),radial-gradient(circle_at_80%_84%,rgba(143,29,32,0.14),transparent_44%)]" />
@@ -49,9 +61,11 @@ export function LixiCardBack({ amount }: LixiCardBackProps) {
         Cung hỷ phát tài
       </div>
       <div className="absolute inset-0 flex items-center justify-center px-3">
-        {typeof amount === "number" ? (
-          <p className="rounded-xl border border-[#e0bc78] bg-white/65 px-3 py-2 text-[1.65rem] font-bold text-[#8f1d20] shadow-[0_6px_18px_rgba(143,29,32,0.14)]">
-            {formatVnd(amount)}
+        {amountLabel ? (
+          <p
+            className={`max-w-full whitespace-nowrap rounded-xl border border-[#e0bc78] bg-white/65 px-2.5 py-2 font-bold leading-none tracking-[-0.015em] text-[#8f1d20] shadow-[0_6px_18px_rgba(143,29,32,0.14)] ${amountSizeClass}`}
+          >
+            {amountLabel}
           </p>
         ) : (
           <svg viewBox="0 0 88 88" className="h-16 w-16 text-[#d2a44a]" fill="none" aria-hidden="true">

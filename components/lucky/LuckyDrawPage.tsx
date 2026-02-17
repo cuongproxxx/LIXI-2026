@@ -743,7 +743,7 @@ export function LuckyDrawPage() {
                   )}
                   {(scene === "result" || scene === "locked") && amountToShow !== null && (
                     <>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f5cf83]">Bạn nhận được</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f5cf83] mt-5">Bạn nhận được</p>
                       <p className="mt-1 text-[2.1rem] font-semibold text-[#fff3d6]">
                         <AmountCounter value={amountToShow} durationMs={amountDuration} />
                       </p>
