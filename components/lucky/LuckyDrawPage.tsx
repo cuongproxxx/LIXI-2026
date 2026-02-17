@@ -290,6 +290,7 @@ export function LuckyDrawPage() {
   const [depositError, setDepositError] = useState("");
   const [depositMessage, setDepositMessage] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
+  const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 330, height: 320 });
 
   const cardCount = Math.max(1, cardOrder.length);
@@ -592,6 +593,7 @@ export function LuckyDrawPage() {
       const nextRemaining = body.remainingTotal ?? remainingTotal + quantity;
       setDepositMessage(`Da bo them ${quantity} to ${formatVnd(amount)}.`);
       setDepositQuantityInput("1");
+      setIsDepositDialogOpen(false);
       restartRound(nextRemaining);
     } catch {
       setDepositError("Khong the ket noi den server.");
@@ -818,43 +820,19 @@ export function LuckyDrawPage() {
             )}
 
             {!isRevealDialogOpen && (
-              <form
-                onSubmit={handleDepositSubmit}
-                className="mt-4 rounded-2xl border border-[#edd4a2] bg-[#fff7e5]/90 p-3 text-left"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bo tien vao li xi</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="text-[11px] text-[#7b5b3b]">Menh gia (VND)</span>
-                    <input
-                      value={depositAmountInput}
-                      onChange={(event) => setDepositAmountInput(event.target.value)}
-                      className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
-                      inputMode="numeric"
-                      required
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] text-[#7b5b3b]">So to</span>
-                    <input
-                      value={depositQuantityInput}
-                      onChange={(event) => setDepositQuantityInput(event.target.value)}
-                      className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
-                      inputMode="numeric"
-                      required
-                    />
-                  </label>
-                </div>
+              <div className="mt-4 text-center">
                 <button
-                  type="submit"
-                  disabled={isDepositing}
-                  className="cta-press mt-3 w-full rounded-lg bg-gradient-to-r from-[#a0282d] to-[#7f191c] px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-[#fff4dc] disabled:opacity-60"
+                  type="button"
+                  onClick={() => {
+                    setDepositError("");
+                    setIsDepositDialogOpen(true);
+                  }}
+                  className="cta-press rounded-xl border border-[#d8af67] bg-white/85 px-4 py-2.5 text-sm font-semibold text-[#7b4a2e] transition-colors hover:bg-[#fff2d7]"
                 >
-                  {isDepositing ? "Dang cap nhat..." : "Bo tien vao li xi"}
+                  Bo tien vao li xi
                 </button>
-                {depositError && <p className="mt-2 text-xs text-[#9f262b]">{depositError}</p>}
                 {depositMessage && <p className="mt-2 text-xs text-[#49753e]">{depositMessage}</p>}
-              </form>
+              </div>
             )}
 
             {(scene === "locked" || scene === "exhausted" || drawError || remainingTotal <= 0) && (
@@ -876,6 +854,69 @@ export function LuckyDrawPage() {
       </section>
 
       <AnimatePresence>
+        {isDepositDialogOpen && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/52 px-4 backdrop-blur-[1px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.form
+              onSubmit={handleDepositSubmit}
+              className="w-full max-w-[360px] rounded-2xl border border-[#edd4a2] bg-[#fff7e5] p-4 text-left shadow-[0_24px_48px_rgba(0,0,0,0.24)]"
+              initial={{ y: 10, opacity: 0.9, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 8, opacity: 0.92, scale: 0.99 }}
+              transition={{ duration: 0.2, ease: [0.2, 0.86, 0.24, 1] }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bo tien vao li xi</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[11px] text-[#7b5b3b]">Menh gia (VND)</span>
+                  <input
+                    value={depositAmountInput}
+                    onChange={(event) => setDepositAmountInput(event.target.value)}
+                    className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
+                    inputMode="numeric"
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-[#7b5b3b]">So to</span>
+                  <input
+                    value={depositQuantityInput}
+                    onChange={(event) => setDepositQuantityInput(event.target.value)}
+                    className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
+                    inputMode="numeric"
+                    required
+                  />
+                </label>
+              </div>
+              {depositError && <p className="mt-2 text-xs text-[#9f262b]">{depositError}</p>}
+              <div className="mt-3 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isDepositing) return;
+                    setDepositError("");
+                    setIsDepositDialogOpen(false);
+                  }}
+                  className="rounded-lg border border-[#d8af67] bg-white/80 px-3 py-2 text-sm font-medium text-[#7b4a2e]"
+                >
+                  Huy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDepositing}
+                  className="cta-press rounded-lg bg-gradient-to-r from-[#a0282d] to-[#7f191c] px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-[#fff4dc] disabled:opacity-60"
+                >
+                  {isDepositing ? "Dang cap nhat..." : "Xac nhan"}
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+
         {isRevealDialogOpen && selectedCardId !== null && (
           <motion.div
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/78 backdrop-blur-[2px]"
