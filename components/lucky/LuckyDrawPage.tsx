@@ -93,6 +93,7 @@ const MIN_ANGLE = -60;
 const MAX_ANGLE = 60;
 const INITIAL_SHUFFLE_SEED = 2026;
 const MAX_VISIBLE_STACK_NOTES = 4;
+const QUICK_DEPOSIT_AMOUNTS = [10_000, 20_000, 50_000, 100_000, 200_000, 500_000];
 const FALLBACK_CURRENCY_FILES = [
   "1k.jpg",
   "2k.jpg",
@@ -870,7 +871,7 @@ export function LuckyDrawPage() {
               transition={{ duration: 0.2, ease: [0.2, 0.86, 0.24, 1] }}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bo tien vao li xi</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 space-y-2">
                 <label className="block">
                   <span className="text-[11px] text-[#7b5b3b]">Menh gia (VND)</span>
                   <input
@@ -881,6 +882,28 @@ export function LuckyDrawPage() {
                     required
                   />
                 </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_DEPOSIT_AMOUNTS.map((value) => {
+                    const isActive = depositAmountInput.trim() === String(value);
+                    return (
+                      <button
+                        key={`quick-amount-${value}`}
+                        type="button"
+                        onClick={() => {
+                          setDepositAmountInput(String(value));
+                          setDepositError("");
+                        }}
+                        className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                          isActive
+                            ? "border-[#9f262b] bg-[#9f262b] text-[#fff4dc]"
+                            : "border-[#d8af67] bg-white/80 text-[#7b4a2e] hover:bg-[#fff2d7]"
+                        }`}
+                      >
+                        {value}
+                      </button>
+                    );
+                  })}
+                </div>
                 <label className="block">
                   <span className="text-[11px] text-[#7b5b3b]">So to</span>
                   <input
