@@ -183,6 +183,21 @@ function buildFallbackCurrencyNotes(): CurrencyNoteAsset[] {
     .sort((a, b) => a.amount - b.amount);
 }
 
+function decomposeAmountByDenominations(amount: number, notesDesc: CurrencyNoteAsset[]): { values: number[]; remaining: number } {
+  const values: number[] = [];
+  let remaining = amount;
+
+  for (const note of notesDesc) {
+    if (remaining < note.amount) continue;
+    const count = Math.floor(remaining / note.amount);
+    for (let i = 0; i < count; i += 1) values.push(note.amount);
+    remaining -= count * note.amount;
+    if (remaining === 0) break;
+  }
+
+  return { values, remaining };
+}
+
 function buildMoneyStackPlan(amount: number | null, sourceNotes: CurrencyNoteAsset[]): MoneyStackPlan {
   if (typeof amount !== "number" || amount <= 0) {
     return { notes: [], hiddenCount: 0, fallback: false, warning: null };
@@ -205,34 +220,15 @@ function buildMoneyStackPlan(amount: number | null, sourceNotes: CurrencyNoteAss
   let fallback = false;
   let warning: string | null = null;
 
-  if (amount <= 500_000) {
-    const exact = normalized.find((item) => item.amount === amount);
-    if (exact) {
-      pickedValues = [exact.amount];
-    } else {
-      const nearest = normalized.find((item) => item.amount <= amount) ?? normalized[normalized.length - 1];
-      pickedValues = [nearest.amount];
-      fallback = true;
-      warning = `[reveal] Khong co menh gia khop ${amount}, fallback ${nearest.amount}.`;
-    }
+  const decomposed = decomposeAmountByDenominations(amount, normalized);
+  if (decomposed.remaining === 0 && decomposed.values.length > 0) {
+    pickedValues = decomposed.values;
   } else {
-    let remaining = amount;
-    for (const note of normalized) {
-      while (remaining >= note.amount) {
-        pickedValues.push(note.amount);
-        remaining -= note.amount;
-        if (pickedValues.length >= 60) break;
-      }
-      if (remaining === 0 || pickedValues.length >= 60) break;
-    }
-
-    if (remaining !== 0 || pickedValues.length === 0) {
-      const nearest = normalized.find((item) => item.amount <= amount) ?? normalized[normalized.length - 1];
-      pickedValues = [nearest.amount];
-      fallback = true;
-      warning =
-        `[reveal] Khong tach chinh xac amount=${amount} theo bo currency, fallback ${nearest.amount}. remaining=${remaining}.`;
-    }
+    const nearest = normalized.find((item) => item.amount <= amount) ?? normalized[normalized.length - 1];
+    pickedValues = [nearest.amount];
+    fallback = true;
+    warning =
+      `[reveal] Khong tach chinh xac amount=${amount} theo bo currency, fallback ${nearest.amount}. remaining=${decomposed.remaining}.`;
   }
 
   const visibleValues = pickedValues.slice(0, MAX_VISIBLE_STACK_NOTES);
@@ -860,74 +856,74 @@ export function LuckyDrawPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 0.9, 0.2, 1] }}
                 >
-                  <div className="relative mx-auto w-[80vw] max-w-[340px] min-w-[240px]">
-                    <div className="relative aspect-[0.74/1] overflow-visible [perspective:1100px]">
-                      <div className="absolute inset-x-[8%] bottom-[9%] z-[1] h-[78%] rounded-[26px] bg-gradient-to-b from-[#df4b50] to-[#92252a] shadow-[0_14px_24px_rgba(0,0,0,0.2)]" />
-
-                      <div className="pointer-events-none absolute inset-x-0 top-[35%] z-[2] flex justify-center">
+                  <div className="relative mx-auto w-[46vw] max-w-[186px] min-w-[132px]">
+                    <div className="relative aspect-[1/2] overflow-visible">
+                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 34% 0)" }}>
                         {moneyStackPlan.notes.map((note, index) => {
                           const count = moneyStackPlan.notes.length;
                           const center = (count - 1) / 2;
                           const spread = index - center;
-                          const xShift = spread * 9;
-                          const rotateShift = spread * 1.1;
-                          const hiddenY = 74 + index * 5;
-                          const revealedY = -106 + index * 7;
+                          const xShift = spread * 5;
+                          const rotateShift = spread * 0.7;
+                          const hiddenY = 84 + index * 8;
+                          const revealedY = -74 + index * 8;
 
                           return (
-                            <motion.div
+                            <div
                               key={`${note.amount}-${index}-${note.src}`}
-                              className="absolute left-[24%] top-0 aspect-[2.18/1] w-[52%] drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
-                              style={{ willChange: "transform" }}
-                              initial={{ x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }}
-                              animate={
-                                flapOpened
-                                  ? {
-                                      x: xShift,
-                                      y: [hiddenY, revealedY - 14, revealedY],
-                                      rotate: 90 + rotateShift,
-                                      opacity: 1,
-                                      scale: 1
-                                    }
-                                  : { x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }
-                              }
-                              transition={
-                                flapOpened
-                                  ? {
-                                      duration: 0.88,
-                                      ease: [0.2, 0.86, 0.26, 1],
-                                      delay: 0.08 + index * 0.05,
-                                      times: [0, 0.78, 1]
-                                    }
-                                  : { duration: 0.2, ease: "easeOut" }
-                              }
+                              className="absolute left-1/2 top-[58%] w-[66%] aspect-[2.18/1] -translate-x-1/2"
                             >
-                              <Image
-                                src={note.src}
-                                alt={`${formatVnd(note.amount)}`}
-                                fill
-                                className="object-contain"
-                                sizes="(max-width: 430px) 46vw, 170px"
-                              />
-                            </motion.div>
+                              <motion.div
+                                className="h-full w-full drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
+                                style={{ willChange: "transform" }}
+                                initial={{ x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }}
+                                animate={
+                                  flapOpened
+                                    ? {
+                                        x: xShift,
+                                        y: [hiddenY, revealedY - 16, revealedY],
+                                        rotate: 90 + rotateShift,
+                                        opacity: 1,
+                                        scale: 1
+                                      }
+                                    : { x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }
+                                }
+                                transition={
+                                  flapOpened
+                                    ? {
+                                        duration: 0.9,
+                                        ease: [0.2, 0.86, 0.26, 1],
+                                        delay: 0.08 + index * 0.05,
+                                        times: [0, 0.78, 1]
+                                      }
+                                    : { duration: 0.2, ease: "easeOut" }
+                                }
+                              >
+                                <Image
+                                  src={note.src}
+                                  alt={`${formatVnd(note.amount)}`}
+                                  fill
+                                  className="object-contain"
+                                  sizes="(max-width: 430px) 40vw, 160px"
+                                />
+                              </motion.div>
+                            </div>
                           );
                         })}
                       </div>
 
-                      <div className="absolute inset-x-[8%] bottom-[9%] z-[4] h-[62%] overflow-hidden rounded-b-[30px] rounded-t-[14px]">
-                        <div className="absolute inset-0 bg-gradient-to-b from-[#c63136]/25 to-[#8d2228]/55" />
+                      <div className="pointer-events-none absolute inset-0 z-[5]">
+                        <Image
+                          src="/currency/baolixi.jpg"
+                          alt="Bao lì xì"
+                          fill
+                          className="object-contain drop-shadow-[0_14px_22px_rgba(0,0,0,0.24)]"
+                          sizes="(max-width: 430px) 46vw, 186px"
+                        />
                       </div>
-
-                      <div className="absolute inset-x-[8%] bottom-[9%] z-[5] h-[62%] rounded-b-[30px] rounded-t-[14px] border border-[#f2cb80]/68 bg-gradient-to-b from-[#cf363b] to-[#8f2227] shadow-[0_18px_30px_rgba(30,8,9,0.32)]">
-                        <div className="absolute inset-x-3 top-2 h-px bg-[#ffe5b2]/40" />
-                        <div className="absolute inset-x-0 top-[40%] h-px bg-[#f6d18c]/32" />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(250,214,149,0.16),transparent_40%),radial-gradient(circle_at_88%_84%,rgba(255,240,195,0.12),transparent_40%)]" />
-                      </div>
-
-                      <div className="pointer-events-none absolute inset-x-[14%] top-[41%] z-[7] h-[3px] rounded-full bg-[#f4cf84]/58" />
 
                       {moneyStackPlan.hiddenCount > 0 && (
-                        <div className="absolute right-[9%] top-[18%] z-[8] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
+                        <div className="absolute right-[-6%] top-[6%] z-[7] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
                           +{moneyStackPlan.hiddenCount} tờ
                         </div>
                       )}
