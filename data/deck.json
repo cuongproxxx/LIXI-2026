@@ -1,24 +1,9 @@
 {
   "deck": [
     {
-      "amount": 50000,
-      "quantity": 5,
-      "remaining": 4
-    },
-    {
-      "amount": 100000,
-      "quantity": 3,
-      "remaining": 1
-    },
-    {
-      "amount": 200000,
-      "quantity": 2,
-      "remaining": 1
-    },
-    {
-      "amount": 500000,
+      "amount": 12000,
       "quantity": 1,
-      "remaining": 1
+      "remaining": 0
     }
   ]
 }

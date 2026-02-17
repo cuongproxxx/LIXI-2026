@@ -860,24 +860,24 @@ export function LuckyDrawPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 0.9, 0.2, 1] }}
                 >
-                  <div className="relative mx-auto w-[72vw] max-w-[300px] min-w-[212px]">
-                    <div className="relative aspect-[0.72/1] overflow-visible [perspective:1100px]">
-                      <div className="absolute inset-x-[9%] bottom-[10%] z-[1] h-[73%] rounded-[24px] bg-gradient-to-b from-[#df4b50] to-[#92252a] shadow-[0_14px_24px_rgba(0,0,0,0.2)]" />
+                  <div className="relative mx-auto w-[80vw] max-w-[340px] min-w-[240px]">
+                    <div className="relative aspect-[0.74/1] overflow-visible [perspective:1100px]">
+                      <div className="absolute inset-x-[8%] bottom-[9%] z-[1] h-[78%] rounded-[26px] bg-gradient-to-b from-[#df4b50] to-[#92252a] shadow-[0_14px_24px_rgba(0,0,0,0.2)]" />
 
-                      <div className="pointer-events-none absolute inset-x-0 top-[34%] z-[2] flex justify-center">
+                      <div className="pointer-events-none absolute inset-x-0 top-[35%] z-[2] flex justify-center">
                         {moneyStackPlan.notes.map((note, index) => {
                           const count = moneyStackPlan.notes.length;
                           const center = (count - 1) / 2;
                           const spread = index - center;
                           const xShift = spread * 9;
                           const rotateShift = spread * 1.1;
-                          const hiddenY = 70 + index * 5;
-                          const revealedY = -118 + index * 7;
+                          const hiddenY = 74 + index * 5;
+                          const revealedY = -106 + index * 7;
 
                           return (
                             <motion.div
                               key={`${note.amount}-${index}-${note.src}`}
-                              className="absolute left-[20%] top-0 aspect-[2.18/1] w-[60%] drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
+                              className="absolute left-[24%] top-0 aspect-[2.18/1] w-[52%] drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
                               style={{ willChange: "transform" }}
                               initial={{ x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }}
                               animate={
@@ -914,29 +914,17 @@ export function LuckyDrawPage() {
                         })}
                       </div>
 
-                      <div className="absolute inset-x-[9%] bottom-[10%] z-[4] h-[58%] overflow-hidden rounded-b-[30px] rounded-t-[14px]">
+                      <div className="absolute inset-x-[8%] bottom-[9%] z-[4] h-[62%] overflow-hidden rounded-b-[30px] rounded-t-[14px]">
                         <div className="absolute inset-0 bg-gradient-to-b from-[#c63136]/25 to-[#8d2228]/55" />
                       </div>
 
-                      <div className="absolute inset-x-[9%] bottom-[10%] z-[5] h-[58%] rounded-b-[30px] rounded-t-[14px] border border-[#f2cb80]/68 bg-gradient-to-b from-[#cf363b] to-[#8f2227] shadow-[0_18px_30px_rgba(30,8,9,0.32)]">
+                      <div className="absolute inset-x-[8%] bottom-[9%] z-[5] h-[62%] rounded-b-[30px] rounded-t-[14px] border border-[#f2cb80]/68 bg-gradient-to-b from-[#cf363b] to-[#8f2227] shadow-[0_18px_30px_rgba(30,8,9,0.32)]">
                         <div className="absolute inset-x-3 top-2 h-px bg-[#ffe5b2]/40" />
-                        <div className="absolute inset-x-0 top-[42%] h-px bg-[#f6d18c]/32" />
+                        <div className="absolute inset-x-0 top-[40%] h-px bg-[#f6d18c]/32" />
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_18%,rgba(250,214,149,0.16),transparent_40%),radial-gradient(circle_at_88%_84%,rgba(255,240,195,0.12),transparent_40%)]" />
                       </div>
 
-                      <motion.div
-                        className="absolute inset-x-[9%] top-[7%] z-[6] h-[46%] origin-top [transform-style:preserve-3d]"
-                        animate={{
-                          rotateX: flapOpened ? -63 : -3,
-                          y: flapOpened ? -6 : 0,
-                          rotateZ: flapOpened ? 0.8 : 0
-                        }}
-                        transition={{ type: "spring", stiffness: 250, damping: 23, mass: 0.65 }}
-                      >
-                        <div className="h-full w-full [clip-path:polygon(0_0,100%_0,50%_100%)] border border-[#f5c980]/60 bg-gradient-to-b from-[#f05d62] to-[#b22d33] shadow-[0_8px_14px_rgba(0,0,0,0.24)]" />
-                      </motion.div>
-
-                      <div className="pointer-events-none absolute inset-x-[14%] top-[42%] z-[7] h-[3px] rounded-full bg-[#f4cf84]/58" />
+                      <div className="pointer-events-none absolute inset-x-[14%] top-[41%] z-[7] h-[3px] rounded-full bg-[#f4cf84]/58" />
 
                       {moneyStackPlan.hiddenCount > 0 && (
                         <div className="absolute right-[9%] top-[18%] z-[8] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
