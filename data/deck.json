@@ -1,6 +1,11 @@
 {
   "deck": [
     {
+      "amount": 10000,
+      "quantity": 2,
+      "remaining": 0
+    },
+    {
       "amount": 12000,
       "quantity": 10,
       "remaining": 0

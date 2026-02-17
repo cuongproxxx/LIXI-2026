@@ -107,3 +107,28 @@ export async function drawFromDeck(): Promise<{ exhausted: boolean; amount?: num
     };
   });
 }
+
+export async function addMoneyToDeck(
+  amount: number,
+  quantity: number
+): Promise<{ deck: DeckItem[]; remainingTotal: number }> {
+  return withQueue(async () => {
+    const state = await readDeckUnsafe();
+    const target = state.deck.find((item) => item.amount === amount);
+
+    if (target) {
+      target.quantity += quantity;
+      target.remaining += quantity;
+    } else {
+      state.deck.push({ amount, quantity, remaining: quantity });
+    }
+
+    const validated = deckStateSchema.parse({ deck: sortDeck(state.deck) });
+    await writeDeck(validated);
+
+    return {
+      deck: validated.deck,
+      remainingTotal: sumRemaining(validated.deck)
+    };
+  });
+}

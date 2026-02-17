@@ -6,7 +6,6 @@ import {
   verifyDrawLockToken
 } from "@/lib/auth";
 import { drawFromDeck } from "@/lib/deck-store";
-import { getServerEnv } from "@/lib/env-store";
 import { getClientIp } from "@/lib/ip";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isSameOrigin } from "@/lib/security";
@@ -39,7 +38,7 @@ export async function POST(request: NextRequest) {
     continueMode = false;
   }
 
-  const signingSecret = (await getServerEnv("ADMIN_PASSWORD")) || DRAW_COOKIE_FALLBACK_SECRET;
+  const signingSecret = process.env.DRAW_LOCK_SECRET?.trim() || DRAW_COOKIE_FALLBACK_SECRET;
   if (!continueMode) {
     const lockCookie = request.cookies.get(DRAW_LOCK_COOKIE)?.value;
     if (verifyDrawLockToken(lockCookie, signingSecret)) {

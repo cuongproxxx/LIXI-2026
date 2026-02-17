@@ -1,21 +1,23 @@
-# Rút Lì Xì 2026
+# Rut Li Xi 2026 (Public)
 
-Refactor theo deck mệnh giá (không dùng Telegram, không form thông tin người nhận).
+Du an rut li xi chay public, khong co trang admin.
+Nguoi dung co the tu bo tien vao bao li xi ngay tren client.
 
-## Chạy local
+## Chay local
 
 ```bash
 npm i
 cp .env.example .env.local
-# cập nhật ADMIN_PASSWORD trong .env.local
 npm run dev
 ```
 
-## Biến môi trường
+## Bien moi truong
 
-- `ADMIN_PASSWORD`: mật khẩu bảo vệ route `/admin`.
+Khong co bien bat buoc.
 
-## Dữ liệu deck
+- `DRAW_LOCK_SECRET` (optional): secret ky cookie draw-lock 24h.
+
+## Du lieu deck
 
 - File server: `data/deck.json`
 - Format:
@@ -31,14 +33,12 @@ npm run dev
 
 ## API
 
-- `GET /api/config`: public deck + tổng remaining.
-- `POST /api/draw`: rút theo weighted random từ remaining, chống rút lại 24h (cookie signed).
-- `GET /api/admin/status`: trạng thái đăng nhập admin + deck hiện tại.
-- `POST /api/admin/deck`: lưu deck mới.
-- `POST /api/admin/login`: đăng nhập admin.
-- `POST /api/admin/logout`: đăng xuất admin.
+- `GET /api/config`: lay danh sach menh gia con lai + tong so luot.
+- `POST /api/draw`: rut ngau nhien theo so to con lai.
+- `POST /api/deposit`: bo them tien vao li xi.
+  - Body: `{ "amount": number, "quantity": number }`
 
-## Chống rút lại
+## Ghi chu
 
-- Client: `localStorage` 24h (`lixi_2026_draw_record`).
-- Server: cookie ký `lixi_draw_lock` 24h.
+- Luong admin da duoc go bo.
+- Form "Bo tien vao li xi" nam tren trang public (`/`).

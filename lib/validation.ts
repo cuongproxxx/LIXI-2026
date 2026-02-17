@@ -6,7 +6,7 @@ const quantitySchema = z.coerce.number().int().min(0).max(100_000);
 export const deckItemSchema = z
   .object({
     amount: amountSchema,
-    quantity: quantitySchema.refine((value) => value > 0, "Quantity phải lớn hơn 0."),
+    quantity: quantitySchema.refine((value) => value > 0, "Quantity phai lon hon 0."),
     remaining: quantitySchema
   })
   .superRefine((value, ctx) => {
@@ -14,14 +14,14 @@ export const deckItemSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["remaining"],
-        message: "Remaining không được lớn hơn Quantity."
+        message: "Remaining khong duoc lon hon Quantity."
       });
     }
   });
 
 export const deckStateSchema = z
   .object({
-    deck: z.array(deckItemSchema).min(1, "Deck cần ít nhất 1 mệnh giá.").max(200)
+    deck: z.array(deckItemSchema).min(1, "Deck can it nhat 1 menh gia.").max(200)
   })
   .superRefine((value, ctx) => {
     const seen = new Set<number>();
@@ -30,23 +30,14 @@ export const deckStateSchema = z
         ctx.addIssue({
           code: "custom",
           path: ["deck", index, "amount"],
-          message: "Mệnh giá bị trùng."
+          message: "Menh gia bi trung."
         });
       }
       seen.add(item.amount);
     });
   });
 
-export const adminDeckSchema = z.object({
-  deck: z.array(
-    z.object({
-      amount: amountSchema,
-      quantity: quantitySchema.refine((value) => value > 0, "Quantity phải lớn hơn 0."),
-      remaining: quantitySchema.optional()
-    })
-  )
-});
-
-export const adminLoginSchema = z.object({
-  password: z.string().trim().min(1, "Mật khẩu không được để trống.").max(120)
+export const depositSchema = z.object({
+  amount: amountSchema,
+  quantity: quantitySchema.refine((value) => value > 0, "Quantity phai lon hon 0.")
 });

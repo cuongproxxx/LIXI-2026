@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { Target } from "framer-motion";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import { AmountCounter } from "@/components/lucky/AmountCounter";
 import { LixiCardFront } from "@/components/lucky/LixiCardFace";
 import { formatVnd } from "@/lib/format";
@@ -29,6 +29,12 @@ interface DrawApiResponse {
   amount?: number;
   remainingTotal?: number;
   exhausted?: boolean;
+  error?: string;
+}
+
+interface DepositApiResponse {
+  ok?: boolean;
+  remainingTotal?: number;
   error?: string;
 }
 
@@ -279,6 +285,11 @@ export function LuckyDrawPage() {
   const [revealedAmount, setRevealedAmount] = useState<number | null>(null);
   const [currencyNotes, setCurrencyNotes] = useState<CurrencyNoteAsset[]>(() => buildFallbackCurrencyNotes());
   const [amountDuration, setAmountDuration] = useState(820);
+  const [depositAmountInput, setDepositAmountInput] = useState("10000");
+  const [depositQuantityInput, setDepositQuantityInput] = useState("1");
+  const [depositError, setDepositError] = useState("");
+  const [depositMessage, setDepositMessage] = useState("");
+  const [isDepositing, setIsDepositing] = useState(false);
   const [stageSize, setStageSize] = useState<StageSize>({ width: 330, height: 320 });
 
   const cardCount = Math.max(1, cardOrder.length);
@@ -367,6 +378,38 @@ export function LuckyDrawPage() {
       setScene("fan");
     },
     [clearScheduledWork, waitStep]
+  );
+
+  const restartRound = useCallback(
+    (nextRemaining: number) => {
+      drawRequestIdRef.current += 1;
+      clearScheduledWork();
+
+      setIsDrawing(false);
+      setDrawError("");
+      setDrawRecord(null);
+      setRevealedAmount(null);
+      setSelectedIndex(null);
+      setRevealStage("fly");
+      setPendingOrder(null);
+      setHighlightedIndex(null);
+      setRemainingTotal(nextRemaining);
+
+      if (nextRemaining <= 0) {
+        setCardOrder([]);
+        setScene("exhausted");
+        return;
+      }
+
+      setScene("stack");
+      const nextOrder = buildSequentialOrder(nextRemaining);
+      setCardOrder(nextOrder);
+
+      const nextSeed = shuffleSeedRef.current + 1;
+      shuffleSeedRef.current = nextSeed;
+      void runShuffleSequence(nextOrder, nextSeed);
+    },
+    [clearScheduledWork, runShuffleSequence]
   );
 
   const flushQueuedX = useCallback(() => {
@@ -508,58 +551,53 @@ export function LuckyDrawPage() {
   };
 
   const handleReset = () => {
-    if (remainingTotal <= 0) {
-      setCardOrder([]);
-      setSelectedIndex(null);
-      setRevealStage("fly");
-      setScene("exhausted");
-      return;
-    }
-
-    drawRequestIdRef.current += 1;
-    clearScheduledWork();
-
-    setIsDrawing(false);
-    setDrawError("");
-    setDrawRecord(null);
-    setRevealedAmount(null);
-    setSelectedIndex(null);
-    setRevealStage("fly");
-    setScene("stack");
-    setPendingOrder(null);
-
-    const resetOrder = buildSequentialOrder(remainingTotal);
-    setCardOrder(resetOrder);
-    setHighlightedIndex(null);
-
-    const nextSeed = shuffleSeedRef.current + 1;
-    shuffleSeedRef.current = nextSeed;
-    void runShuffleSequence(resetOrder, nextSeed);
+    restartRound(remainingTotal);
   };
 
   const handlePlayContinue = () => {
-    if (remainingTotal <= 0) {
-      setScene("exhausted");
+    restartRound(remainingTotal);
+  };
+
+  const handleDepositSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setDepositError("");
+    setDepositMessage("");
+
+    const amount = Number(depositAmountInput.trim());
+    const quantity = Number(depositQuantityInput.trim());
+
+    if (!Number.isInteger(amount) || amount < 1000) {
+      setDepositError("So tien phai la so nguyen tu 1000 tro len.");
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setDepositError("So to phai la so nguyen lon hon 0.");
       return;
     }
 
-    drawRequestIdRef.current += 1;
-    clearScheduledWork();
-    setIsDrawing(false);
-    setDrawError("");
-    setDrawRecord(null);
-    setRevealedAmount(null);
-    setSelectedIndex(null);
-    setRevealStage("fly");
-    setPendingOrder(null);
+    setIsDepositing(true);
+    try {
+      const response = await fetch("/api/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, quantity })
+      });
+      const body = (await response.json()) as DepositApiResponse;
 
-    const continueOrder = buildSequentialOrder(remainingTotal);
-    setCardOrder(continueOrder);
-    setHighlightedIndex(null);
+      if (!response.ok) {
+        setDepositError(body.error ?? "Khong the bo tien vao li xi luc nay.");
+        return;
+      }
 
-    const nextSeed = shuffleSeedRef.current + 1;
-    shuffleSeedRef.current = nextSeed;
-    void runShuffleSequence(continueOrder, nextSeed);
+      const nextRemaining = body.remainingTotal ?? remainingTotal + quantity;
+      setDepositMessage(`Da bo them ${quantity} to ${formatVnd(amount)}.`);
+      setDepositQuantityInput("1");
+      restartRound(nextRemaining);
+    } catch {
+      setDepositError("Khong the ket noi den server.");
+    } finally {
+      setIsDepositing(false);
+    }
   };
 
   const handleFanPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -777,6 +815,46 @@ export function LuckyDrawPage() {
                   Chơi lại
                 </button>
               </div>
+            )}
+
+            {!isRevealDialogOpen && (
+              <form
+                onSubmit={handleDepositSubmit}
+                className="mt-4 rounded-2xl border border-[#edd4a2] bg-[#fff7e5]/90 p-3 text-left"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8f1d20]">Bo tien vao li xi</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-[11px] text-[#7b5b3b]">Menh gia (VND)</span>
+                    <input
+                      value={depositAmountInput}
+                      onChange={(event) => setDepositAmountInput(event.target.value)}
+                      className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
+                      inputMode="numeric"
+                      required
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] text-[#7b5b3b]">So to</span>
+                    <input
+                      value={depositQuantityInput}
+                      onChange={(event) => setDepositQuantityInput(event.target.value)}
+                      className="focus-ring mt-1 w-full rounded-lg border border-[#e2c38b] bg-white/95 px-2.5 py-2 text-sm text-[#3b2a22]"
+                      inputMode="numeric"
+                      required
+                    />
+                  </label>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isDepositing}
+                  className="cta-press mt-3 w-full rounded-lg bg-gradient-to-r from-[#a0282d] to-[#7f191c] px-4 py-2 text-sm font-semibold uppercase tracking-[0.12em] text-[#fff4dc] disabled:opacity-60"
+                >
+                  {isDepositing ? "Dang cap nhat..." : "Bo tien vao li xi"}
+                </button>
+                {depositError && <p className="mt-2 text-xs text-[#9f262b]">{depositError}</p>}
+                {depositMessage && <p className="mt-2 text-xs text-[#49753e]">{depositMessage}</p>}
+              </form>
             )}
 
             {(scene === "locked" || scene === "exhausted" || drawError || remainingTotal <= 0) && (
