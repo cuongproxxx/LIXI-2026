@@ -858,7 +858,7 @@ export function LuckyDrawPage() {
                 >
                   <div className="relative mx-auto w-[40vw] max-w-[164px] min-w-[116px]">
                     <div className="relative aspect-[1/2] overflow-visible">
-                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 40% 0)" }}>
+                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 28% 0)" }}>
                         {moneyStackPlan.notes.map((note, index) => {
                           const count = moneyStackPlan.notes.length;
                           const center = (count - 1) / 2;
@@ -866,14 +866,14 @@ export function LuckyDrawPage() {
                           const spread = isTwoNotes ? (index === 0 ? -1 : 1) : index - center;
                           const xShift = isTwoNotes ? spread * 20 : spread * 8;
                           const rotateShift = isTwoNotes ? spread * 10 : spread * 2;
-                          const hiddenY = 108 + index * 7;
-                          const revealedY = (isTwoNotes ? -94 : -88) + index * 5;
+                          const hiddenY = 124 + index * 8;
+                          const revealedY = (isTwoNotes ? -14 : -10) + index * 4;
                           const noteWidthPercent = isTwoNotes ? 90 : 84;
 
                           return (
                             <div
                               key={`${note.amount}-${index}-${note.src}`}
-                              className="absolute left-1/2 top-[62%] aspect-[2.18/1] -translate-x-1/2"
+                              className="absolute left-1/2 top-[71%] aspect-[2.18/1] -translate-x-1/2"
                               style={{ width: `${noteWidthPercent}%`, zIndex: isTwoNotes ? index + 1 : count - index }}
                             >
                               <motion.div
@@ -884,7 +884,7 @@ export function LuckyDrawPage() {
                                   flapOpened
                                     ? {
                                         x: xShift,
-                                        y: [hiddenY, revealedY - 16, revealedY],
+                                        y: [hiddenY, revealedY - 12, revealedY],
                                         rotate: 90 + rotateShift,
                                         opacity: 1,
                                         scale: 1
