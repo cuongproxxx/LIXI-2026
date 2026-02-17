@@ -856,40 +856,43 @@ export function LuckyDrawPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 0.9, 0.2, 1] }}
                 >
-                  <div className="relative mx-auto w-[40vw] max-w-[164px] min-w-[116px]">
-                    <div className="relative aspect-[1/2] overflow-visible">
-                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 28% 0)" }}>
+                  <div className="relative mx-auto w-[76vw] max-w-[320px] min-w-[220px]">
+                    <div className="relative aspect-[2.18/1] overflow-visible">
+                      <div className="pointer-events-none absolute inset-0">
                         {moneyStackPlan.notes.map((note, index) => {
                           const count = moneyStackPlan.notes.length;
                           const center = (count - 1) / 2;
-                          const isTwoNotes = count >= 2;
-                          const spread = isTwoNotes ? (index === 0 ? -1 : 1) : index - center;
-                          const xShift = isTwoNotes ? spread * 20 : spread * 8;
-                          const rotateShift = isTwoNotes ? spread * 10 : spread * 2;
-                          const hiddenY = 124 + index * 8;
-                          const revealedY = (isTwoNotes ? -14 : -10) + index * 4;
-                          const noteWidthPercent = isTwoNotes ? 90 : 84;
+                          const spread = index - center;
+                          const shouldFan = count >= 2;
+                          const spreadGap = shouldFan ? (count >= 4 ? 52 : count === 3 ? 64 : 78) : 0;
+                          const xShift = shouldFan ? spread * spreadGap : 0;
+                          const rotateShift = shouldFan ? spread * 7.5 : 0;
+                          const liftY = shouldFan ? Math.abs(spread) * 7 : 0;
+                          const hiddenY = 94 + index * 8;
+                          const revealedY = liftY;
+                          const noteWidthPercent = shouldFan ? 80 : 88;
+                          const zIndex = 100 + Math.round((count - Math.abs(spread)) * 10);
 
                           return (
                             <div
                               key={`${note.amount}-${index}-${note.src}`}
-                              className="absolute left-1/2 top-[71%] aspect-[2.18/1] -translate-x-1/2"
-                              style={{ width: `${noteWidthPercent}%`, zIndex: isTwoNotes ? index + 1 : count - index }}
+                              className="absolute left-1/2 top-1/2 aspect-[2.18/1] -translate-x-1/2 -translate-y-1/2"
+                              style={{ width: `${noteWidthPercent}%`, zIndex }}
                             >
                               <motion.div
                                 className="h-full w-full drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
                                 style={{ willChange: "transform" }}
-                                initial={{ x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }}
+                                initial={{ x: 0, y: hiddenY, rotate: 0, opacity: 0.88, scale: 0.96 }}
                                 animate={
                                   flapOpened
                                     ? {
                                         x: xShift,
                                         y: [hiddenY, revealedY - 12, revealedY],
-                                        rotate: 90 + rotateShift,
+                                        rotate: rotateShift,
                                         opacity: 1,
                                         scale: 1
                                       }
-                                    : { x: xShift, y: hiddenY, rotate: 90 + rotateShift, opacity: 0.9, scale: 0.96 }
+                                    : { x: 0, y: hiddenY, rotate: 0, opacity: 0.88, scale: 0.96 }
                                 }
                                 transition={
                                   flapOpened
@@ -907,7 +910,7 @@ export function LuckyDrawPage() {
                                   alt={`${formatVnd(note.amount)}`}
                                   fill
                                   className="object-contain"
-                                  sizes="(max-width: 430px) 36vw, 150px"
+                                  sizes="(max-width: 430px) 72vw, 280px"
                                 />
                               </motion.div>
                             </div>
@@ -915,18 +918,8 @@ export function LuckyDrawPage() {
                         })}
                       </div>
 
-                      <div className="pointer-events-none absolute inset-0 z-[5]">
-                        <Image
-                          src="/currency/baolixi.jpg"
-                          alt="Bao lì xì"
-                          fill
-                          className="object-contain drop-shadow-[0_14px_22px_rgba(0,0,0,0.24)]"
-                          sizes="(max-width: 430px) 40vw, 164px"
-                        />
-                      </div>
-
                       {moneyStackPlan.hiddenCount > 0 && (
-                        <div className="absolute right-[-6%] top-[6%] z-[7] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
+                        <div className="absolute right-[-6%] top-[-6%] z-[7] rounded-full bg-[#f6d891] px-2.5 py-1 text-[11px] font-semibold text-[#7a1f22] shadow-[0_6px_12px_rgba(0,0,0,0.18)]">
                           +{moneyStackPlan.hiddenCount} tờ
                         </div>
                       )}
