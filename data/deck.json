@@ -2,8 +2,13 @@
   "deck": [
     {
       "amount": 12000,
-      "quantity": 1,
-      "remaining": 0
+      "quantity": 10,
+      "remaining": 8
+    },
+    {
+      "amount": 13000,
+      "quantity": 5,
+      "remaining": 4
     }
   ]
 }

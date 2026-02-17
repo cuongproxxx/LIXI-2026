@@ -856,22 +856,25 @@ export function LuckyDrawPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, ease: [0.2, 0.9, 0.2, 1] }}
                 >
-                  <div className="relative mx-auto w-[46vw] max-w-[186px] min-w-[132px]">
+                  <div className="relative mx-auto w-[40vw] max-w-[164px] min-w-[116px]">
                     <div className="relative aspect-[1/2] overflow-visible">
-                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 34% 0)" }}>
+                      <div className="pointer-events-none absolute inset-0 z-[6]" style={{ clipPath: "inset(0 0 40% 0)" }}>
                         {moneyStackPlan.notes.map((note, index) => {
                           const count = moneyStackPlan.notes.length;
                           const center = (count - 1) / 2;
-                          const spread = index - center;
-                          const xShift = spread * 5;
-                          const rotateShift = spread * 0.7;
-                          const hiddenY = 84 + index * 8;
-                          const revealedY = -74 + index * 8;
+                          const isTwoNotes = count >= 2;
+                          const spread = isTwoNotes ? (index === 0 ? -1 : 1) : index - center;
+                          const xShift = isTwoNotes ? spread * 20 : spread * 8;
+                          const rotateShift = isTwoNotes ? spread * 10 : spread * 2;
+                          const hiddenY = 108 + index * 7;
+                          const revealedY = (isTwoNotes ? -94 : -88) + index * 5;
+                          const noteWidthPercent = isTwoNotes ? 90 : 84;
 
                           return (
                             <div
                               key={`${note.amount}-${index}-${note.src}`}
-                              className="absolute left-1/2 top-[58%] w-[66%] aspect-[2.18/1] -translate-x-1/2"
+                              className="absolute left-1/2 top-[62%] aspect-[2.18/1] -translate-x-1/2"
+                              style={{ width: `${noteWidthPercent}%`, zIndex: isTwoNotes ? index + 1 : count - index }}
                             >
                               <motion.div
                                 className="h-full w-full drop-shadow-[0_10px_16px_rgba(0,0,0,0.24)]"
@@ -904,7 +907,7 @@ export function LuckyDrawPage() {
                                   alt={`${formatVnd(note.amount)}`}
                                   fill
                                   className="object-contain"
-                                  sizes="(max-width: 430px) 40vw, 160px"
+                                  sizes="(max-width: 430px) 36vw, 150px"
                                 />
                               </motion.div>
                             </div>
@@ -918,7 +921,7 @@ export function LuckyDrawPage() {
                           alt="Bao lì xì"
                           fill
                           className="object-contain drop-shadow-[0_14px_22px_rgba(0,0,0,0.24)]"
-                          sizes="(max-width: 430px) 46vw, 186px"
+                          sizes="(max-width: 430px) 40vw, 164px"
                         />
                       </div>
 
